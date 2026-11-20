@@ -19,7 +19,7 @@
 
 local M = {}
 
-M.VERSION = "0.1.0"
+M.VERSION = "0.1.1"
 
 M.DEFAULTS = {
   enabled         = true,

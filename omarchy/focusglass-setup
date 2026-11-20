@@ -1,7 +1,8 @@
 #!/bin/bash
 # Sets focusglass up in your Hyprland config, or takes it out.
 #
-#   focusglass-setup ensure     ask once to set it up, when it isn't yet (run by the Omarchy service)
+#   focusglass-setup ensure     ask once to set it up when it isn't yet, and turn it on
+#                               if Hyprland loaded its config while it was off (run by the Omarchy service)
 #   focusglass-setup install    add ~/.config/hypr/focusglass.lua and load it from hyprland.lua
 #   focusglass-setup uninstall  stop loading it and give Hyprland its own window shader back
 
@@ -37,7 +38,13 @@ add_require() {
 
 case ${1:-} in
 ensure)
-  [[ -f $CONFIG ]] && loaded_from_main || ask_once
+  if [[ -f $CONFIG ]] && loaded_from_main; then
+    # Just enabled in Omarchy: Hyprland read its config while focusglass was
+    # off, so reload it to turn focusglass on now.
+    hyprctl getoption decoration:dim_inactive -j 2>/dev/null | grep -q '"bool": false' && hyprctl reload >/dev/null
+  else
+    ask_once
+  fi
   ;;
 install)
   echo "focusglass fades the windows you are not using: grayscale, darker, frosted"

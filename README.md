@@ -99,6 +99,13 @@ inactive the window is, and grayscale, darkness and frost follow it. Because it
 rides on Hyprland's dim, the change animates with Hyprland's `fadeDim`
 animation, and windows Hyprland never dims (`no_dim`) are left alone.
 
+Your settings file runs the plugin only while it is enabled in Omarchy, which
+lists enabled plugins in `~/.config/omarchy/shell.json`. After
+`omarchy plugin disable dc.focusglass` (or `remove`), the settings file stops
+there: it deletes the shader copy focusglass wrote and runs nothing from the
+plugin folder, and Hyprland reloads its config so windows look normal right
+away. Enabling the plugin again turns focusglass back on.
+
 Transparency and the background blur are plain Hyprland settings
 (`inactive_opacity` and `decoration:blur`), set by focusglass from your values.
 
@@ -133,13 +140,18 @@ omarchy plugin remove dc.focusglass
 The first command stops loading focusglass from `hyprland.lua` and deletes its
 shader copy, so Hyprland draws windows with its own shader again. It leaves
 `~/.config/hypr/focusglass.lua` in place; delete it if you don't want it. If you
-remove the plugin without that step, the settings file does nothing on its own.
+only disable or remove the plugin, the settings file sees that, deletes the
+shader copy and does nothing else.
 
 ## Tests
 
 ```sh
 lua tests/test_patch.lua
+lua tests/test_example.lua
 ```
 
-Patches the installed Hyprland shader with the default settings and checks the
-result, the settings validation, and that an unknown shader is refused.
+The first patches the installed Hyprland shader with the default settings and
+checks the result, the settings validation, and that an unknown shader is
+refused. The second checks that the settings file runs the plugin only while
+Omarchy lists it as enabled, and that when it is off it deletes only a shader
+focusglass wrote.
