@@ -4,6 +4,8 @@ Keeps your attention on the window you are working in. Every other window fades
 to grayscale, gets darker, slightly frosted and see-through, so the active one
 is the only thing on screen in full color and full brightness.
 
+![focusglass: the active window in full color, the others grayscale, darker, frosted and see-through](preview.png)
+
 Each effect is a number from 0 (off) to 100 in one settings file, and you can
 keep any single window normal with a key.
 
