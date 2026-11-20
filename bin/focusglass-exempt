@@ -1,0 +1,15 @@
+#!/bin/bash
+# Keeps the focused window normal when it loses focus, or puts it back under
+# focusglass. Runs Omarchy's transparency toggle, then turns focusglass's effect
+# off for the window when it ended up opaque, and on again when it is see-through.
+
+set -euo pipefail
+
+addr=$(hyprctl activewindow -j | jq -r '.address // empty')
+[[ -n $addr ]] || exit 0
+window="address:$addr"
+
+omarchy-hyprland-window-transparency-toggle >/dev/null
+
+opaque=$(hyprctl getprop "$window" opaque)
+hyprctl dispatch "hl.dsp.window.set_prop({ window = \"$window\", prop = \"no_dim\", value = \"$opaque\" })" >/dev/null
