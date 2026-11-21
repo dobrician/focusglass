@@ -19,7 +19,7 @@
 
 local M = {}
 
-M.VERSION = "0.1.1"
+M.VERSION = "0.1.2"
 
 M.DEFAULTS = {
   enabled         = true,
@@ -49,6 +49,16 @@ local VERSION_H  = "/usr/include/hyprland/src/version.h"
 local STATE_DIR  = (os.getenv("XDG_STATE_HOME") or (HOME .. "/.local/state")) .. "/focusglass"
 
 local PLUGIN_DIR = (debug.getinfo(1, "S").source:match("^@(.*)/hypr/[^/]+$")) or "."
+local SETTINGS   = HOME .. "/.config/hypr/focusglass.lua"
+local SHELL_JSON = HOME .. "/.config/omarchy/shell.json"
+
+-- The settings file of focusglass 0.1.0 loaded this module without checking
+-- whether the plugin is enabled. setup() swaps these lines for the current ones.
+local PREAMBLE_0_1_0 = [[
+local plugin = (os.getenv("HOME") or "") .. "/.config/omarchy/plugins/dc.focusglass/hypr/focusglass.lua"
+local ok, focusglass = pcall(dofile, plugin)
+if not ok then return end -- the plugin was removed: nothing to do
+]]
 
 -- ---------------------------------------------------------------------------
 -- helpers
@@ -308,9 +318,48 @@ local function install_shader(s)
 end
 
 -- ---------------------------------------------------------------------------
+-- enabled state and settings file
+
+-- Omarchy lists enabled plugins in ~/.config/omarchy/shell.json; disable and
+-- remove take focusglass out of that list.
+function M.enabled_in_omarchy()
+  local json = read(SHELL_JSON)
+  local plugins = json and json:match('"plugins"%s*:%s*(%b[])')
+  return plugins ~= nil and plugins:find('"id"%s*:%s*"dc%.focusglass"') ~= nil
+end
+
+-- Brings a settings file from 0.1.0 up to date, keeping the user's values: its
+-- lines that load the plugin are replaced with the ones from the current
+-- template, which check that the plugin is enabled first.
+local function migrate_settings()
+  local current = read(SETTINGS)
+  if not current then return end
+  local i, j = current:find(PREAMBLE_0_1_0, 1, true)
+  if not i then return end
+  local template = read(PLUGIN_DIR .. "/examples/focusglass.lua")
+  local preamble = template and template:match("\n(local home = .-\nif not ok then return end\n)")
+  if not preamble then return end
+  local backup = SETTINGS .. ".bak.focusglass-0.1.0"
+  if not read(backup) then write(backup, current) end
+  if write(SETTINGS, current:sub(1, i - 1) .. preamble .. current:sub(j + 1)) then
+    notify_once("migrated", "focusglass settings updated",
+      SETTINGS .. " now runs focusglass only while the plugin is enabled. Your values are kept; the old file is in " .. backup .. ".")
+  end
+end
+
+-- ---------------------------------------------------------------------------
 -- entry point
 
 function M.setup(user)
+  migrate_settings()
+
+  -- A 0.1.0 settings file calls setup() even when the plugin is disabled: do
+  -- nothing then, beyond giving Hyprland its own window shader back.
+  if not M.enabled_in_omarchy() then
+    if remove_override() and hl and hl.exec_cmd then hl.exec_cmd("hyprctl reloadshaders") end
+    return nil
+  end
+
   local s, problems = M.resolve(user)
   if #problems > 0 then
     notify_once("settings", "focusglass settings", table.concat(problems, "\n"))

@@ -106,6 +106,11 @@ there: it deletes the shader copy focusglass wrote and runs nothing from the
 plugin folder, and Hyprland reloads its config so windows look normal right
 away. Enabling the plugin again turns focusglass back on.
 
+A settings file made by focusglass 0.1.0 did not have this check. The plugin
+updates it the next time it loads: it keeps your values, puts the check in,
+saves the old file as `focusglass.lua.bak.focusglass-0.1.0`, and does nothing
+while the plugin is disabled.
+
 Transparency and the background blur are plain Hyprland settings
 (`inactive_opacity` and `decoration:blur`), set by focusglass from your values.
 
@@ -153,5 +158,5 @@ lua tests/test_example.lua
 The first patches the installed Hyprland shader with the default settings and
 checks the result, the settings validation, and that an unknown shader is
 refused. The second checks that the settings file runs the plugin only while
-Omarchy lists it as enabled, and that when it is off it deletes only a shader
-focusglass wrote.
+Omarchy lists it as enabled, that when it is off it deletes only a shader
+focusglass wrote, and that a settings file from 0.1.0 is updated.

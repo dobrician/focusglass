@@ -1,6 +1,8 @@
 -- lua tests/test_example.lua
 -- Checks that the settings file runs the plugin only while Omarchy lists it as
--- enabled, and that, when it is off, it deletes only a shader focusglass wrote.
+-- enabled, that, when it is off, it deletes only a shader focusglass wrote, and
+-- that a settings file from 0.1.0 is brought up to date and does nothing while
+-- the plugin is disabled.
 
 local dir = arg[0]:match("^(.*)/tests/") or "."
 local example = dir .. "/examples/focusglass.lua"
@@ -57,6 +59,44 @@ check(exists(shader), "disabled: keeps a shader it did not write")
 
 out = run(nil)
 check(not out:find("SETUP", 1, true), "no shell.json: does not run the plugin")
+
+-- A settings file from 0.1.0, loading the real plugin from this checkout.
+local repo = io.popen("cd '" .. dir .. "' && pwd"):read("l")
+os.execute("rm -rf '" .. sandbox .. "/.config/omarchy/plugins/dc.focusglass'")
+os.execute("ln -s '" .. repo .. "' '" .. sandbox .. "/.config/omarchy/plugins/dc.focusglass'")
+local old_settings = io.popen("git -C '" .. repo .. "' show 4738e02:examples/focusglass.lua"):read("a")
+old_settings = old_settings:gsub("darkness = 50", "darkness = 33")
+local settings = sandbox .. "/.config/hypr/focusglass.lua"
+local stub = "hl = { exec_cmd = function(c) print('EXEC ' .. c) end, config = function() print('CONFIG') end }"
+local function run_settings(shell_json)
+  write(sandbox .. "/.config/omarchy/shell.json", shell_json)
+  local p = io.popen("HOME='" .. sandbox .. "' XDG_STATE_HOME='" .. sandbox .. "/state' lua -e \"" .. stub .. "\" '"
+    .. settings .. "' 2>&1")
+  local out = p:read("a"); p:close()
+  return out
+end
+local function content(path) local f = io.open(path); if not f then return nil end local t = f:read("a"); f:close(); return t end
+
+write(settings, old_settings)
+write(shader, ours)
+out = run_settings(disabled)
+local migrated = content(settings) or ""
+check(not out:find("lua:", 1, true), "0.1.0 file, disabled: runs without errors")
+check(not out:find("CONFIG", 1, true), "0.1.0 file, disabled: plugin changes no Hyprland setting")
+check(not exists(shader), "0.1.0 file, disabled: deletes the focusglass shader")
+check(migrated:find("enabled_in_omarchy", 1, true), "0.1.0 file: rewritten with the enabled check")
+check(migrated:find("darkness = 33", 1, true), "0.1.0 file: keeps the user's values")
+check(content(settings .. ".bak.focusglass-0.1.0") == old_settings, "0.1.0 file: old file kept as a backup")
+
+out = run_settings(disabled)
+check(not out:find("CONFIG", 1, true) and not out:find("EXEC", 1, true), "migrated file, disabled: does nothing")
+
+write(settings, old_settings)
+os.remove(settings .. ".bak.focusglass-0.1.0")
+out = run_settings(enabled)
+check(not out:find("lua:", 1, true), "0.1.0 file, enabled: runs without errors")
+check(out:find("CONFIG", 1, true), "0.1.0 file, enabled: focusglass runs")
+check((content(settings) or ""):find("enabled_in_omarchy", 1, true), "0.1.0 file, enabled: rewritten too")
 
 os.execute("rm -rf '" .. sandbox .. "'")
 if failures > 0 then print(failures .. " failed"); os.exit(1) end
