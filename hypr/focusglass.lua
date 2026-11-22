@@ -19,7 +19,7 @@
 
 local M = {}
 
-M.VERSION = "0.1.2"
+M.VERSION = "0.1.3"
 
 M.DEFAULTS = {
   enabled         = true,
@@ -71,16 +71,33 @@ local function read(path)
   return s
 end
 
-local function write(path, content)
-  local f, err = io.open(path, "w")
-  if not f then return false, err end
-  f:write(content)
-  f:close()
-  return true
-end
-
 local function shell_quote(s)
   return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
+-- Writes to a temporary file next to path and renames it over path only when
+-- every byte was written, so a full disk never leaves path half written.
+local function write(path, content)
+  -- follow a symlink (a dotfiles setup), so the link stays and its target changes
+  local p = io.popen("readlink -f -- " .. shell_quote(path) .. " 2>/dev/null")
+  local real = p and p:read("l")
+  if p then p:close() end
+  if real and real ~= "" then path = real end
+  local tmp = path .. ".tmp-focusglass"
+  local f, err = io.open(tmp, "w")
+  if not f then return false, err end
+  local ok, werr = f:write(content)
+  local closed, cerr = f:close()
+  if not ok or not closed then
+    os.remove(tmp)
+    return false, werr or cerr
+  end
+  local renamed, rerr = os.rename(tmp, path)
+  if not renamed then
+    os.remove(tmp)
+    return false, rerr
+  end
+  return true
 end
 
 -- Tells the user something once per distinct message, so a config reload loop
@@ -339,11 +356,25 @@ local function migrate_settings()
   local template = read(PLUGIN_DIR .. "/examples/focusglass.lua")
   local preamble = template and template:match("\n(local home = .-\nif not ok then return end\n)")
   if not preamble then return end
+  -- The settings file is replaced only once a full copy of it is saved.
   local backup = SETTINGS .. ".bak.focusglass-0.1.0"
-  if not read(backup) then write(backup, current) end
-  if write(SETTINGS, current:sub(1, i - 1) .. preamble .. current:sub(j + 1)) then
+  local saved = read(backup)
+  if saved and saved ~= current then
+    backup = backup .. "-" .. os.time()
+    saved = read(backup)
+  end
+  local ok, err = true, nil
+  if saved ~= current then ok, err = write(backup, current) end
+  if ok and read(backup) ~= current then ok, err = false, "the copy does not match" end
+  if ok then ok, err = write(SETTINGS, current:sub(1, i - 1) .. preamble .. current:sub(j + 1)) end
+
+  if ok then
     notify_once("migrated", "focusglass settings updated",
       SETTINGS .. " now runs focusglass only while the plugin is enabled. Your values are kept; the old file is in " .. backup .. ".")
+  else
+    notify_once("migrate", "focusglass settings not updated",
+      "Could not update " .. SETTINGS .. " (" .. tostring(err) .. "); it was left as it was. " ..
+      "focusglass still does nothing while the plugin is disabled, and tries again at the next reload.")
   end
 end
 

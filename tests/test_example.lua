@@ -98,6 +98,26 @@ check(not out:find("lua:", 1, true), "0.1.0 file, enabled: runs without errors")
 check(out:find("CONFIG", 1, true), "0.1.0 file, enabled: focusglass runs")
 check((content(settings) or ""):find("enabled_in_omarchy", 1, true), "0.1.0 file, enabled: rewritten too")
 
+-- The backup can't be written: the settings file must stay exactly as it was.
+write(settings, old_settings)
+os.remove(settings .. ".bak.focusglass-0.1.0")
+os.execute("mkdir -p '" .. settings .. ".bak.focusglass-0.1.0'") -- a directory: saving the copy fails
+out = run_settings(disabled)
+check(not out:find("lua:", 1, true), "backup fails: runs without errors")
+check(content(settings) == old_settings, "backup fails: settings file left untouched")
+check(not out:find("CONFIG", 1, true), "backup fails, disabled: still changes no Hyprland setting")
+check(out:find("not updated", 1, true), "backup fails: says so")
+os.execute("rmdir '" .. settings .. ".bak.focusglass-0.1.0'")
+
+-- A settings file that is a symlink stays a symlink.
+os.remove(settings .. ".bak.focusglass-0.1.0")
+write(sandbox .. "/dotfiles/focusglass.lua", old_settings)
+os.remove(settings)
+os.execute("ln -s '" .. sandbox .. "/dotfiles/focusglass.lua' '" .. settings .. "'")
+out = run_settings(disabled)
+check(io.popen("test -L '" .. settings .. "' && echo link"):read("l") == "link", "symlinked settings: link kept")
+check((content(sandbox .. "/dotfiles/focusglass.lua") or ""):find("enabled_in_omarchy", 1, true), "symlinked settings: target updated")
+
 os.execute("rm -rf '" .. sandbox .. "'")
 if failures > 0 then print(failures .. " failed"); os.exit(1) end
 print("all passed")
